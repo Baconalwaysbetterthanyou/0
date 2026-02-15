@@ -1,0 +1,111 @@
+{
+  "environment": "staging",
+  "services": {
+    "backend": {
+      "enabled": true,
+      "platform": "railway",
+      "healthCheck": "/health",
+      "port": 3000,
+      "dependencies": [],
+      "scaling": {
+        "minInstances": 1,
+        "maxInstances": 2,
+        "targetCpuPercent": 80
+      },
+      "resources": {
+        "memory": "256MB",
+        "cpu": "0.25"
+      },
+      "environment": {
+        "NODE_ENV": "staging",
+        "PORT": "3000",
+        "LOG_LEVEL": "debug"
+      }
+    },
+    "frontend": {
+      "enabled": true,
+      "platform": "netlify",
+      "healthCheck": "/",
+      "dependencies": ["backend"],
+      "buildCommand": "npm run build:staging",
+      "publishDirectory": "dist",
+      "redirects": [
+        {
+          "from": "/api/*",
+          "to": "https://quest-api-staging.railway.app/api/:splat",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "deployment": {
+    "strategy": "rolling",
+    "timeout": 300000,
+    "healthCheckRetries": 5,
+    "healthCheckInterval": 10000,
+    "rollbackOnFailure": true,
+    "requireApproval": false
+  },
+  "monitoring": {
+    "enabled": true,
+    "alertThresholds": {
+      "responseTime": 2000,
+      "errorRate": 0.05,
+      "availability": 0.95
+    },
+    "healthCheckInterval": 60000,
+    "retentionDays": 7
+  },
+  "notifications": {
+    "slack": {
+      "enabled": true,
+      "webhook": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#staging",
+      "onSuccess": false,
+      "onFailure": true,
+      "onAlert": true
+    },
+    "email": {
+      "enabled": false,
+      "recipients": ["dev@company.com"],
+      "onFailure": true,
+      "onAlert": false
+    },
+    "webhook": {
+      "enabled": false
+    }
+  },
+  "security": {
+    "requireScanPass": false,
+    "allowedVulnerabilities": {
+      "low": 5,
+      "medium": 2,
+      "high": 0,
+      "critical": 0
+    },
+    "secrets": {
+      "vault": "staging",
+      "required": [
+        "DATABASE_URL",
+        "JWT_SECRET"
+      ]
+    }
+  },
+  "database": {
+    "migrations": {
+      "enabled": true,
+      "autoRun": true,
+      "backupBeforeMigration": false
+    },
+    "backup": {
+      "beforeDeployment": false,
+      "retentionDays": 3
+    }
+  },
+  "cdn": {
+    "enabled": false
+  },
+  "loadBalancer": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,36 @@
+# Railway deployment configuration for Quest Tracker API
+[build]
+  builder = "NIXPACKS"
+  buildCommand = "npm install --production"
+
+[deploy]
+  startCommand = "npm start"
+  healthcheckPath = "/health"
+  healthcheckTimeout = 300
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 10
+
+[env]
+  NODE_ENV = "production"
+  PORT = "$PORT"
+
+# Health check configuration
+[health]
+  path = "/health"
+  interval = 60
+  timeout = 30
+  retries = 3
+
+# Resource limits
+[resources]
+  memory = "512MB"
+  cpu = "0.5"
+
+# Custom domains configuration
+[domains]
+  # Configure your custom domain here
+  # custom = "api.yourapp.com"
+
+# Database configuration (if using Railway database)
+[database]
+  # Will be automatically configured if you add a database service

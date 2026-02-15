@@ -1,0 +1,123 @@
+{
+  "environment": "production",
+  "services": {
+    "backend": {
+      "enabled": true,
+      "platform": "railway",
+      "healthCheck": "/health",
+      "port": 3000,
+      "dependencies": [],
+      "scaling": {
+        "minInstances": 2,
+        "maxInstances": 10,
+        "targetCpuPercent": 70
+      },
+      "resources": {
+        "memory": "512MB",
+        "cpu": "0.5"
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "LOG_LEVEL": "info"
+      }
+    },
+    "frontend": {
+      "enabled": true,
+      "platform": "netlify",
+      "healthCheck": "/",
+      "dependencies": ["backend"],
+      "buildCommand": "npm run build",
+      "publishDirectory": "dist",
+      "redirects": [
+        {
+          "from": "/api/*",
+          "to": "https://quest-api.railway.app/api/:splat",
+          "status": 200
+        }
+      ]
+    }
+  },
+  "deployment": {
+    "strategy": "blue-green",
+    "timeout": 600000,
+    "healthCheckRetries": 10,
+    "healthCheckInterval": 15000,
+    "rollbackOnFailure": true,
+    "requireApproval": true,
+    "approvers": ["admin@company.com"]
+  },
+  "monitoring": {
+    "enabled": true,
+    "alertThresholds": {
+      "responseTime": 1000,
+      "errorRate": 0.01,
+      "availability": 0.99
+    },
+    "healthCheckInterval": 30000,
+    "retentionDays": 30
+  },
+  "notifications": {
+    "slack": {
+      "enabled": true,
+      "webhook": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#deployments",
+      "onSuccess": true,
+      "onFailure": true,
+      "onAlert": true
+    },
+    "email": {
+      "enabled": true,
+      "recipients": ["team@company.com"],
+      "onFailure": true,
+      "onAlert": true
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "https://your-webhook.com/deployments",
+      "secret": "webhook-secret"
+    }
+  },
+  "security": {
+    "requireScanPass": true,
+    "allowedVulnerabilities": {
+      "low": 0,
+      "medium": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "secrets": {
+      "vault": "production",
+      "required": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "API_KEY",
+        "CORS_ORIGINS"
+      ]
+    }
+  },
+  "database": {
+    "migrations": {
+      "enabled": true,
+      "autoRun": false,
+      "backupBeforeMigration": true
+    },
+    "backup": {
+      "beforeDeployment": true,
+      "retentionDays": 7
+    }
+  },
+  "cdn": {
+    "enabled": true,
+    "provider": "cloudflare",
+    "purgeOnDeploy": true,
+    "zones": ["company.com"]
+  },
+  "loadBalancer": {
+    "enabled": true,
+    "healthCheckPath": "/health",
+    "healthCheckInterval": 30,
+    "unhealthyThreshold": 3,
+    "healthyThreshold": 2
+  }
+}

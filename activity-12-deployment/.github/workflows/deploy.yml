@@ -1,0 +1,275 @@
+# TODO 5: CI/CD Pipeline Integration (Hard)
+# Complete GitHub Actions workflow for automated testing and deployment
+
+name: Deploy Quest Tracker
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger for emergency deployments
+
+
+jobs:
+  # Test Stage: Run comprehensive tests
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd frontend && npm ci
+        cd ../backend && npm ci
+    
+    - name: Run linting
+      run: |
+        cd frontend && npm run lint --if-present
+        cd ../backend && npm run lint --if-present
+    
+    - name: Run security audit
+      run: |
+        cd frontend && npm audit --audit-level=high
+        cd ../backend && npm audit --audit-level=high
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm test -- --coverage --watchAll=false
+    
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test -- --coverage --watchAll=false
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./frontend/coverage/lcov.info,./backend/coverage/lcov.info
+        fail_ci_if_error: false
+
+  # Build Stage: Create production builds
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd frontend && npm ci
+        cd ../backend && npm ci --production
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+    
+    - name: Build backend artifacts
+      run: |
+        cd backend
+        npm run build --if-present
+    
+    - name: Store build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/build/
+        retention-days: 1
+    
+    - name: Store backend artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: backend-build
+        path: backend/
+        retention-days: 1
+
+  # Deploy to Staging
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/build/
+    
+    - name: Deploy to Netlify Staging
+      uses: netlify/actions/cli@master
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID_STAGING }}
+      with:
+        args: deploy --prod --dir=frontend/build --message="Staging deploy ${{ github.sha }}"
+    
+    - name: Deploy to Railway Staging
+      uses: railway-app/railway-action@v1
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      with:
+        command: up
+        project: ${{ secrets.RAILWAY_PROJECT_ID_STAGING }}
+    
+    - name: Run staging health checks
+      run: |
+        npm run health-check https://staging-quest-tracker.netlify.app https://staging-api.railway.app
+    
+    - name: Notify staging deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+
+  # Deploy to Production (with manual approval)
+  deploy-production:
+    needs: [test, build, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/build/
+    
+    - name: Deploy to Netlify Production
+      uses: netlify/actions/cli@master
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      with:
+        args: deploy --prod --dir=frontend/build --message="Production deploy ${{ github.sha }}"
+    
+    - name: Deploy to Railway Production
+      uses: railway-app/railway-action@v1
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      with:
+        command: up
+        project: ${{ secrets.RAILWAY_PROJECT_ID }}
+    
+    - name: Run production health checks
+      run: |
+        npm run health-check https://quest-tracker.netlify.app https://api.quest-tracker.railway.app
+    
+    - name: Performance testing
+      run: |
+        # Install Lighthouse CI
+        npm install -g @lhci/cli@0.12.x
+        # Run Lighthouse tests
+        lhci autorun
+      env:
+        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+    
+    - name: Notify production deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: "🚀 Production deployment completed successfully!"
+      if: always()
+
+  # Rollback job (manual trigger)
+  rollback:
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rollback == 'true'
+    environment: production
+    
+    steps:
+    - name: Checkout previous commit
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.target_commit }}
+    
+    - name: Rebuild and rollback
+      run: |
+        npm ci
+        cd frontend && npm ci && npm run build
+        cd ../backend && npm ci --production
+    
+    - name: Rollback Netlify
+      uses: netlify/actions/cli@master
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      with:
+        args: rollback --site=${{ secrets.NETLIFY_SITE_ID }}
+    
+    - name: Rollback Railway
+      uses: railway-app/railway-action@v1
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      with:
+        command: rollback
+        project: ${{ secrets.RAILWAY_PROJECT_ID }}
+    
+    - name: Notify rollback
+      uses: 8398a7/action-slack@v3
+      with:
+        status: 'custom'
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        custom_payload: |
+          {
+            "text": "🔄 Rollback completed to commit ${{ github.event.inputs.target_commit }}",
+            "attachments": [{
+              "color": "warning",
+              "fields": [{
+                "title": "Initiated by",
+                "value": "${{ github.actor }}",
+                "short": true
+              }, {
+                "title": "Reason",
+                "value": "${{ github.event.inputs.reason || 'Manual rollback' }}",
+                "short": true
+              }]
+            }]
+          }
+
+# Required GitHub Secrets:
+# NETLIFY_AUTH_TOKEN: Netlify CLI auth token
+# NETLIFY_SITE_ID: Production Netlify site ID
+# NETLIFY_SITE_ID_STAGING: Staging Netlify site ID
+# RAILWAY_TOKEN: Railway API token
+# RAILWAY_PROJECT_ID: Production Railway project ID
+# RAILWAY_PROJECT_ID_STAGING: Staging Railway project ID
+# SLACK_WEBHOOK: Slack webhook for deployment notifications
+# LHCI_GITHUB_APP_TOKEN: Lighthouse CI GitHub app token

@@ -1,0 +1,71 @@
+# Netlify deployment configuration for Quest Tracker Frontend
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_VERSION = "9"
+
+# Redirect API calls to backend
+[[redirects]]
+  from = "/api/*"
+  to = "https://your-api.railway.app/api/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Handle SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache static assets
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css"
+    Cache-Control = "public, max-age=86400"
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Production environment
+[context.production]
+  [context.production.environment]
+    REACT_APP_ENVIRONMENT = "production"
+    REACT_APP_API_URL = "https://your-api.railway.app"
+
+# Staging/preview environment
+[context.deploy-preview]
+  [context.deploy-preview.environment]
+    REACT_APP_ENVIRONMENT = "staging"
+    REACT_APP_API_URL = "https://your-staging-api.railway.app"
+
+# Branch-specific deployments
+[context.branch-deploy]
+  [context.branch-deploy.environment]
+    REACT_APP_ENVIRONMENT = "development"
+
+# Function to handle form submissions
+[[functions]]
+  function = "submission-created"
+  included_files = ["functions/**"]
