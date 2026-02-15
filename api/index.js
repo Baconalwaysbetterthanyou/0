@@ -1,0 +1,62 @@
+module.exports = (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quest Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        h1 { color: #2c3e50; text-align: center; font-size: 2.5em; }
+        .status {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Quest Tracker</h1>
+        <div class="status">
+            <h2>✅ Application is Running!</h2>
+            <p>Your Quest Tracker application has been successfully deployed on Vercel.</p>
+        </div>
+        <div class="info">
+            <h3>🚀 Deployment Information</h3>
+            <p><strong>Platform:</strong> Vercel</p>
+            <p><strong>URL:</strong> <script>document.write(window.location.href)</script></p>
+            <p><strong>Status:</strong> Live and operational</p>
+            <p><strong>Time:</strong> <script>document.write(new Date().toLocaleString())</script></p>
+        </div>
+    </div>
+</body>
+</html>
+  `);
+};
